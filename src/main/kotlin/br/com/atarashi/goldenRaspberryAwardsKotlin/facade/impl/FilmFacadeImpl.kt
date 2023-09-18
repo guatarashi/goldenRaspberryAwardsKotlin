@@ -5,42 +5,29 @@ import br.com.atarashi.goldenRaspberryAwardsKotlin.controller.response.Intervalo
 import br.com.atarashi.goldenRaspberryAwardsKotlin.facade.FilmFacade
 import br.com.atarashi.goldenRaspberryAwardsKotlin.repository.model.Film
 import br.com.atarashi.goldenRaspberryAwardsKotlin.repository.model.ProducerWinner
-import java.util.stream.Stream
 import org.springframework.stereotype.Service
 
 @Service
 class FilmFacadeImpl: FilmFacade {
 
     override fun intervaloPremio(films: List<Film>): IntervaloPremioResponse {
-        val intervaloPremioResponses = IntervaloPremioResponse(mutableListOf(), mutableListOf())
-        val producerWinners: MutableList<ProducerWinner> = mutableListOf()
         val intervalMap: MutableMap<String, IntervaloResponse> = mutableMapOf()
 
-        splitProducersWinners(films, producerWinners)
-
-        val producerWinnersGanhosConsecutivos: MutableList<ProducerWinner> = mutableListOf()
-
-        consecutiveWinningProducers(producerWinners, producerWinnersGanhosConsecutivos)
+        val producerWinnersGanhosConsecutivos = consecutiveWinningProducers(splitProducersWinners(films))
 
         calculandoIntervalos(producerWinnersGanhosConsecutivos)
 
-        val intervalMinimo: Int? = producerWinnersGanhosConsecutivos.minBy { it.interval!! }.interval
+        producersWinnerMaximoInterval(intervalMap, producerWinnersGanhosConsecutivos)
 
-        val intervalMaximo: Int? = producerWinnersGanhosConsecutivos.maxBy { it.interval!! }.interval
+        producersWinnerMinimoInterval(intervalMap, producerWinnersGanhosConsecutivos)
 
-        producersWinnerMaximoInterval(intervalMap, producerWinnersGanhosConsecutivos, intervalMaximo)
-
-        producersWinnerMinimoInterval(intervalMap, producerWinnersGanhosConsecutivos, intervalMinimo)
-
-        val intervaloResponsesMaximo: MutableList<IntervaloResponse> = mutableListOf()
-        val intervaloResponsesMinimo: MutableList<IntervaloResponse> = mutableListOf()
-
-        intervaloPremioResponses(intervaloPremioResponses, intervalMap, intervaloResponsesMaximo, intervaloResponsesMinimo)
-
-        return intervaloPremioResponses
+        return intervaloPremioResponses(intervalMap)
     }
 
-    private fun intervaloPremioResponses(intervaloPremioResponses: IntervaloPremioResponse, intervalMap: MutableMap<String, IntervaloResponse,>, intervaloResponsesMaximo: MutableList<IntervaloResponse>, intervaloResponsesMinimo: MutableList<IntervaloResponse>) {
+    private fun intervaloPremioResponses(intervalMap: MutableMap<String, IntervaloResponse>): IntervaloPremioResponse {
+        val intervaloResponsesMaximo: MutableList<IntervaloResponse> = arrayListOf()
+        val intervaloResponsesMinimo: MutableList<IntervaloResponse> = arrayListOf()
+
         intervalMap
             .forEach { (s, intervaloResponse) ->
                 if (s.substring(0, s.indexOf("|")) == "max") {
@@ -51,12 +38,13 @@ class FilmFacadeImpl: FilmFacade {
                 }
             }
 
-        intervaloPremioResponses.max = intervaloResponsesMaximo
-        intervaloPremioResponses.min = intervaloResponsesMinimo
+        return IntervaloPremioResponse(intervaloResponsesMinimo, intervaloResponsesMaximo)
     }
 
-    private fun producersWinnerMinimoInterval(intervalMap: MutableMap<String, IntervaloResponse>, producerWinnersGanhosConsecutivos: MutableList<ProducerWinner>, intervalMinimo: Int?) {
-        val producersWinnersIntervalMinimo: MutableList<ProducerWinner> = mutableListOf()
+    private fun producersWinnerMinimoInterval(intervalMap: MutableMap<String, IntervaloResponse>, producerWinnersGanhosConsecutivos: MutableList<ProducerWinner>) {
+        val intervalMinimo: Int? = producerWinnersGanhosConsecutivos.minBy { it.interval!! }.interval
+        val producersWinnersIntervalMinimo = arrayListOf<ProducerWinner>()
+
         producerWinnersGanhosConsecutivos
             .forEach { producerWinner ->
                 if (producerWinner.interval == intervalMinimo) {
@@ -88,8 +76,10 @@ class FilmFacadeImpl: FilmFacade {
             }
     }
 
-    private fun producersWinnerMaximoInterval(intervalMap: MutableMap<String, IntervaloResponse>, producerWinnersGanhosConsecutivos: MutableList<ProducerWinner>, intervalMaximo: Int?) {
-        val producersWinnersIntervalMaximo: MutableList<ProducerWinner> = mutableListOf()
+    private fun producersWinnerMaximoInterval(intervalMap: MutableMap<String, IntervaloResponse>, producerWinnersGanhosConsecutivos: MutableList<ProducerWinner>) {
+        val intervalMaximo: Int? = producerWinnersGanhosConsecutivos.maxBy { it.interval!! }.interval
+        val producersWinnersIntervalMaximo = arrayListOf<ProducerWinner>()
+
         producerWinnersGanhosConsecutivos
             .forEach { producerWinner ->
                 if (producerWinner.interval == intervalMaximo) {
@@ -101,7 +91,7 @@ class FilmFacadeImpl: FilmFacade {
 
         producersWinnersIntervalMaximo
             .forEach { producerWinner ->
-                val producerWinnerListMax2: MutableList<ProducerWinner> = mutableListOf()
+                val producerWinnerListMax2 = arrayListOf<ProducerWinner>()
                 producersWinnersIntervalMaximo
                     .forEach { producerWinner1 ->
                         if (producerWinner1.producer == producerWinner.producer && !producerWinner1.delete!!) {
@@ -143,7 +133,8 @@ class FilmFacadeImpl: FilmFacade {
                 }
     }
 
-    private fun consecutiveWinningProducers(producerWinners: MutableList<ProducerWinner>, producerWinnersGanhosConsecutivos: MutableList<ProducerWinner>) {
+    private fun consecutiveWinningProducers(producerWinners: MutableList<ProducerWinner>): MutableList<ProducerWinner> {
+        val producerWinnersGanhosConsecutivos: MutableList<ProducerWinner> = mutableListOf()
         producerWinners
             .forEach { producerWinner ->
                 val producerWinnersGanhosConsecutivosTemp: MutableList<ProducerWinner> = mutableListOf()
@@ -158,11 +149,13 @@ class FilmFacadeImpl: FilmFacade {
                     producerWinnersGanhosConsecutivos.addAll(producerWinnersGanhosConsecutivosTemp)
                 }
             }
+        return producerWinnersGanhosConsecutivos
     }
 
-    private fun splitProducersWinners(films: List<Film>, producerWinners: MutableList<ProducerWinner>) {
+    private fun splitProducersWinners(films: List<Film>): MutableList<ProducerWinner> {
+        val producerWinners: MutableList<ProducerWinner> = mutableListOf()
         films.forEach { film ->
-            val producersList: List<String> = film.producers.split(",")
+            val producersList: List<String> = film.producers.split(",").toList()
 
             val producers2List: List<String> = producersList
                 .flatMap { it.replace(" and ", ",").split(",") }
@@ -172,6 +165,7 @@ class FilmFacadeImpl: FilmFacade {
                 producer = producer
             )) }
         }
+        return producerWinners
     }
 
 }
